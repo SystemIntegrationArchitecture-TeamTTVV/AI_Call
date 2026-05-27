@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI VoiceBot - Web Client</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.5);
+            --danger: #ef4444;
+            --surface: rgba(30, 41, 59, 0.7);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            background-image: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg) 60%);
+        }
+
+        .container {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem 2rem;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #a78bfa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .mic-wrapper {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+        }
+
+        .mic-btn {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 30px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            position: relative;
+        }
+
+        .mic-btn:hover {
+            transform: scale(1.05);
+            background: #7c3aed;
+        }
+
+        .mic-btn.active {
+            background: var(--danger);
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .status {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            min-height: 24px;
+            margin-bottom: 1rem;
+        }
+
+        .log-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            height: 120px;
+            overflow-y: auto;
+            text-align: left;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .log-box div { margin-bottom: 6px; }
+        .log-ai { color: #a78bfa; }
+        .log-sys { color: #38bdf8; }
+        .log-err { color: #ef4444; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Trợ lý AI Biweb</h1>
+    <p class="subtitle">Trải nghiệm giao tiếp giọng nói Realtime</p>
+
+    <div class="mic-wrapper">
+        <button id="micBtn" class="mic-btn" onclick="toggleCall()">
+            🎙️
+        </button>
+    </div>
+
+    <div id="status" class="status">Sẵn sàng. Bấm Micro để gọi!</div>
+    
+    <div id="logBox" class="log-box"></div>
+</div>
+
+<script>
+    let ws = null;
+    let audioContext = null;
+    let mediaStream = null;
+    let processor = null;
+    let isCalling = false;
+
+    const micBtn = document.getElementById('micBtn');
+    const statusTxt = document.getElementById('status');
+    const logBox = document.getElementById('logBox');
+
+    function log(msg, type = 'sys') {
+        const div = document.createElement('div');
+        div.className = 'log-' + type;
+        div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.appendChild(div);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    async function toggleCall() {
+        if (isCalling) {
+            stopCall();
+        } else {
+            await startCall();
+        }
+    }
+
+    async function startCall() {
+        try {
+            statusTxt.innerText = "Đang kết nối...";
+            
+            // 1. Xin quyền Micro
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // 2. Khởi tạo WebSocket kết nối vào Python server
+            // Dùng ws://localhost:8765 hoặc URL ngrok tùy ý
+            const callId = "web-" + Math.floor(Math.random() * 100000);
+            ws = new WebSocket(`ws://localhost:8765/ws?call_id=${callId}&tenant=web`);
+
+            ws.onopen = () => {
+                isCalling = true;
+                micBtn.classList.add('active');
+                micBtn.innerText = "⏹️";
+                statusTxt.innerText = "Đang kết nối. Hãy nói gì đó!";
+                log("Đã kết nối Server", "sys");
+                
+                // Báo cho server biết đã connect
+                ws.send(JSON.stringify({ event: "connected" }));
+                startAudioStreaming();
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                
+                if (msg.event === "chunk") {
+                    const b64 = msg.media?.payload;
+                    if (b64) {
+                        log("🔊 AI đang trả lời...", "ai");
+                        statusTxt.innerText = "AI đang nói...";
+                        const audio = new Audio("data:audio/mp3;base64," + b64);
+                        audio.play();
+                        audio.onended = () => {
+                            if (isCalling) statusTxt.innerText = "Hãy phản hồi AI...";
+                        };
+                    }
+                } else if (msg.event === "text_reply" || msg.event === "text") {
+                    log("💬 AI: " + msg.text, "ai");
+                }
+            };
+
+            ws.onclose = () => {
+                log("Đóng kết nối WebSocket", "err");
+                stopCall();
+            };
+
+            ws.onerror = (e) => {
+                log("Lỗi kết nối Server", "err");
+                stopCall();
+            };
+
+        } catch (err) {
+            console.error(err);
+            log("Lỗi Micro: " + err.message, "err");
+            statusTxt.innerText = "Lỗi Micro!";
+        }
+    }
+
+    function startAudioStreaming() {
+        // Cố ép Sample Rate về 8000Hz (chuẩn của Tel4vn / Python server)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContext({ sampleRate: 8000 });
+        
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        
+        // Dùng ScriptProcessor để lấy raw PCM data (4096 frames)
+        processor = audioContext.createScriptProcessor(4096, 1, 1);
+        
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        
+        processor.onaudioprocess = (e) => {
+            if (!isCalling || ws.readyState !== WebSocket.OPEN) return;
+            
+            const float32Array = e.inputBuffer.getChannelData(0);
+            const pcm16 = floatTo16BitPCM(float32Array);
+            const base64Audio = bufferToBase64(pcm16);
+            
+            // Gửi lên server
+            ws.send(JSON.stringify({
+                event: "media",
+                media: { payload: base64Audio }
+            }));
+        };
+        log("🎙️ Đang ghi âm (8000Hz)...");
+    }
+
+    function stopCall() {
+        isCalling = false;
+        micBtn.classList.remove('active');
+        micBtn.innerText = "🎙️";
+        statusTxt.innerText = "Đã ngắt. Bấm Micro để gọi lại!";
+        
+        if (processor) processor.disconnect();
+        if (audioContext && audioContext.state !== 'closed') {
+            audioContext.close().catch(e => console.log(e));
+        }
+        if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: "closed" }));
+            ws.close();
+        }
+        log("Đã ngắt kết nối", "sys");
+    }
+
+    // --- Helpers: Float32 (Browser) -> PCM 16bit (Python) ---
+    function floatTo16BitPCM(float32Array) {
+        const buffer = new ArrayBuffer(float32Array.length * 2);
+        const view = new DataView(buffer);
+        for (let i = 0; i < float32Array.length; i++) {
+            let s = Math.max(-1, Math.min(1, float32Array[i]));
+            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true); // Little endian
+        }
+        return buffer;
+    }
+
+    function bufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+</script>
+
+</body>
+</html>

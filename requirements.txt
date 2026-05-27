@@ -1,0 +1,8 @@
+websockets>=12.0
+gTTS>=2.5
+python-dotenv>=1.0
+SpeechRecognition>=3.10
+pydub>=0.25
+groq>=0.9
+twilio>=9.0
+requests>=2.31
