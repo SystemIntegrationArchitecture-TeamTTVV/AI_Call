@@ -62,7 +62,9 @@ def clear_session(call_id: str):
         log_id = s.get("log_id")
         if log_id:
             try:
-                url = f"http://localhost:8081/api/ai-consultation/logs/{log_id}"
+                import os
+                backend_base_url = os.getenv("BACKEND_URL", "https://starfish-app-5lg32.ondigitalocean.app").rstrip("/")
+                url = f"{backend_base_url}/api/ai-consultation/logs/{log_id}"
                 # Tính thời lượng cuộc gọi
                 duration = int(time.time() - s.get("start_time", time.time()))
                 
