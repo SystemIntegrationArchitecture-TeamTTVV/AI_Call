@@ -273,6 +273,14 @@ async def handle_call(ws):
         print(f"[{call_id}] 🧹 Cleaned up\n")
 
 
+import http
+
+async def process_request(path, request_headers):
+    # Respond to HTTP health checks (DigitalOcean / Render) with 200 OK
+    if path == "/" or path == "/health":
+        return http.HTTPStatus.OK, [], b"OK\n"
+    return None
+
 # ── Khởi động ────────────────────────────────────────────────
 async def main():
     print("=" * 55)
@@ -281,7 +289,7 @@ async def main():
     print("  Stack: Google STT + Groq Llama3 (free) + gTTS")
     print("=" * 55)
     print()
-    async with websockets.serve(handle_call, config.WS_HOST, config.WS_PORT):
+    async with websockets.serve(handle_call, config.WS_HOST, config.WS_PORT, process_request=process_request):
         print(f"✅ Server: ws://localhost:{config.WS_PORT}")
         print("   ngrok: ngrok http 8765")
         print()
