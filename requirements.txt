@@ -6,3 +6,4 @@ pydub>=0.25
 groq>=0.9
 twilio>=9.0
 requests>=2.31
+miniaudio>=1.57
