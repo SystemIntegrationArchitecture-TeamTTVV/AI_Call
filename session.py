@@ -83,10 +83,17 @@ def clear_session(call_id: str):
                     else:
                         final_result = "completed"
                 
+                recommended_package = "Gói Cơ Bản"
+                if "doanh nghiệp" in lower_transcript:
+                    recommended_package = "Gói Doanh Nghiệp"
+                elif "nâng cao" in lower_transcript:
+                    recommended_package = "Gói Nâng Cao"
+
                 data = {
                     "result": final_result,
                     "notes": transcript_text.strip(),
-                    "duration": duration
+                    "duration": duration,
+                    "recommendedPackage": recommended_package
                 }
                 
                 req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), method='PUT')
