@@ -14,7 +14,7 @@ TWILIO_PHONE       = os.getenv("TWILIO_PHONE", "")  # Số Twilio dạng +123456
 
 # ── WebSocket Server ─────────────────────────────────────────
 WS_HOST = "0.0.0.0"
-WS_PORT = 8765
+WS_PORT = int(os.environ.get("PORT", 8765))
 
 # ── Audio Format (Twilio dùng mulaw 8000Hz) ─────────────────
 SAMPLE_RATE = 8000
